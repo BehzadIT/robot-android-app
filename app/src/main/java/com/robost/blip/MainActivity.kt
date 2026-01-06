@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.robost.blip.home.HomeScreen
 import com.robost.blip.home.HomeViewModel
 import com.robost.blip.ui.theme.BlipTheme
 import org.koin.androidx.viewmodel.ext.android.viewModel
@@ -41,24 +42,33 @@ class MainActivity : ComponentActivity() {
         setContent {
             BlipTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    val targetRpm by viewModel.targetRpm.collectAsStateWithLifecycle()
-                    Home(
-                        status = viewModel.status.value ?: "Idle",
-                        targetRpm = targetRpm,
-                        onRpmChange = {
-                            viewModel.setTargetRpm(it)
-                        },
+                    val navigateCommand by viewModel.navigateCommand.collectAsStateWithLifecycle()
+                    HomeScreen(
                         modifier = Modifier.padding(innerPadding),
-                        onBrakeClick = {
-                            viewModel.brake()
+                        driveSliderPosition = navigateCommand.signedTargetRpm.toFloat(),
+                        onDriveSliderPositionChange = {
+                            viewModel.onDriveSliderPositionChange(it)
                         },
-                        onDrivePress = {
-                            viewModel.drive()
-                        },
-                        onDriveRelease = {
-                            viewModel.stop()
+                        onDriveSliderRelease = {
+                            viewModel.onDriveSliderRelease()
                         }
                     )
+//                    Home(
+//                        status = viewModel.status.value ?: "Idle",
+//                        targetRpm = targetRpm,
+//                        onRpmChange = {
+//                        },
+//                        modifier = Modifier.padding(innerPadding),
+//                        onBrakeClick = {
+//                            viewModel.brake()
+//                        },
+//                        onDrivePress = {
+//                            viewModel.drive(targetRpm.toFloat())
+//                        },
+//                        onDriveRelease = {
+//                            viewModel.stop()
+//                        }
+//                    )
                 }
             }
         }
