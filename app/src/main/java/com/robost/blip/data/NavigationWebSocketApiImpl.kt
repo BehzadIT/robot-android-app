@@ -1,5 +1,9 @@
 package com.robost.blip.data
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.util.Log
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
@@ -27,15 +31,20 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 private const val TAG = "NavigationWebSocket"
 private const val EVENT_BUFFER_SIZE = 40
 private const val STABLE_CONNECTION_RESET_MS = 15_000L
 private const val INITIAL_RECONNECT_DELAY_MS = 1_000L
 private const val MAX_RECONNECT_DELAY_MS = 15_000L
+private const val DRIVE_LOG_INTERVAL_MS = 1_000L
 
 class NavigationWebSocketApiImpl(
-    private val client: HttpClient
+    private val client: HttpClient,
+    context: Context
 ) : NavigationWebSocketApi {
     private val wsUrl = "ws://10.0.0.186/ws"
     private val apiScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -43,6 +52,7 @@ class NavigationWebSocketApiImpl(
     private val sessionMutex = Mutex()
     private val eventLock = Any()
     private val eventBuffer = ArrayDeque<ReliabilityEvent>(EVENT_BUFFER_SIZE)
+    private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
     @Volatile
     private var keepRunning = false
@@ -51,6 +61,9 @@ class NavigationWebSocketApiImpl(
     private var wsSession: DefaultClientWebSocketSession? = null
 
     private var wsJob: Job? = null
+    private var networkCallbackRegistered = false
+    private var lastDriveLogAtMs = 0L
+    private var lastCallbacks: Callbacks = Callbacks()
 
     private val _connectionState = MutableStateFlow<WebSocketConnectionState>(WebSocketConnectionState.Disconnected)
     override val connectionState: StateFlow<WebSocketConnectionState> = _connectionState.asStateFlow()
@@ -62,20 +75,22 @@ class NavigationWebSocketApiImpl(
         onMessage: (String) -> Unit,
         onClose: () -> Unit
     ) {
+        lastCallbacks = Callbacks(onMessage = onMessage, onClose = onClose)
         if (wsJob?.isActive == true) {
             logEvent("connect_ignored", "connect() called while manager already active")
             return
         }
 
         keepRunning = true
+        registerNetworkCallbackIfNeeded()
         wsJob = apiScope.launch {
-            connectionLoop(onMessage = onMessage, onClose = onClose)
+            connectionLoop()
         }
     }
 
     override suspend fun sendDriveCommand(targetRpm: Int, targetDirection: Int): Boolean {
         val drivePayload = DriveCommandPayload(
-            type = "drive",
+            type = "d",
             targetRpm = targetRpm,
             targetDirection = targetDirection,
             seq = sequence.incrementAndGet(),
@@ -83,19 +98,21 @@ class NavigationWebSocketApiImpl(
         )
         return sendSerializedCommand(
             payload = drivePayload,
-            description = "drive seq=${drivePayload.seq} rpm=$targetRpm dir=$targetDirection"
+            description = "drive seq=${drivePayload.seq} rpm=$targetRpm dir=$targetDirection",
+            highVolume = true
         )
     }
 
     override suspend fun sendStopCommand(): Boolean {
         val stopPayload = StopCommandPayload(
-            type = "stop",
+            type = "s",
             seq = sequence.incrementAndGet(),
             sentAtMs = System.currentTimeMillis()
         )
         return sendSerializedCommand(
             payload = stopPayload,
-            description = "stop seq=${stopPayload.seq}"
+            description = "stop seq=${stopPayload.seq}",
+            highVolume = false
         )
     }
 
@@ -106,15 +123,13 @@ class NavigationWebSocketApiImpl(
             sessionMutex.withLock {
                 wsSession = null
             }
+            unregisterNetworkCallbackIfNeeded()
             _connectionState.value = WebSocketConnectionState.Disconnected
             logEvent("manager_stopped", "disconnect() called")
         }
     }
 
-    private suspend fun connectionLoop(
-        onMessage: (String) -> Unit,
-        onClose: () -> Unit
-    ) {
+    private suspend fun connectionLoop() {
         var attempt = 0
         var lastConnectedAt = 0L
 
@@ -145,8 +160,8 @@ class NavigationWebSocketApiImpl(
                         when (frame) {
                             is Frame.Text -> {
                                 val msg = frame.readText()
-                                logEvent("message_received", msg.take(120))
-                                onMessage(msg)
+                                logEvent("message_received", summarizeIncomingMessage(msg))
+                                lastCallbacks.onMessage(msg)
                             }
                             is Frame.Close -> {
                                 logEvent("close_frame", "Server sent close frame")
@@ -168,7 +183,7 @@ class NavigationWebSocketApiImpl(
                 sessionMutex.withLock {
                     wsSession = null
                 }
-                onClose()
+                lastCallbacks.onClose()
             }
 
             if (!keepRunning) {
@@ -199,7 +214,8 @@ class NavigationWebSocketApiImpl(
 
     private suspend fun sendSerializedCommand(
         payload: Any,
-        description: String
+        description: String,
+        highVolume: Boolean
     ): Boolean {
         val session = sessionMutex.withLock { wsSession }
         if (session == null) {
@@ -214,7 +230,7 @@ class NavigationWebSocketApiImpl(
                 else -> error("Unsupported command payload")
             }
             session.send(Frame.Text(body))
-            logEvent("send_success", description)
+            logSendSuccess(description, highVolume)
             true
         } catch (failure: Exception) {
             logEvent(
@@ -222,6 +238,66 @@ class NavigationWebSocketApiImpl(
                 "$description failed: ${failure.localizedMessage ?: failure::class.simpleName}"
             )
             false
+        }
+    }
+
+    private fun logSendSuccess(description: String, highVolume: Boolean) {
+        if (!highVolume) {
+            logEvent("send_success", description)
+            return
+        }
+
+        val now = System.currentTimeMillis()
+        if (now - lastDriveLogAtMs >= DRIVE_LOG_INTERVAL_MS) {
+            lastDriveLogAtMs = now
+            logEvent("drive_send_sample", description)
+        }
+    }
+
+    private fun summarizeIncomingMessage(message: String): String {
+        return try {
+            val payload = Json.parseToJsonElement(message).jsonObject
+            when (payload["t"]?.jsonPrimitive?.contentOrNull) {
+                "a" -> "ack code=${payload["c"]?.jsonPrimitive?.contentOrNull} seq=${payload["s"]?.jsonPrimitive?.contentOrNull}"
+                "e" -> "error code=${payload["c"]?.jsonPrimitive?.contentOrNull}"
+                else -> message.take(120)
+            }
+        } catch (_: Exception) {
+            message.take(120)
+        }
+    }
+
+    private fun registerNetworkCallbackIfNeeded() {
+        if (networkCallbackRegistered) {
+            return
+        }
+
+        connectivityManager.registerDefaultNetworkCallback(networkCallback)
+        networkCallbackRegistered = true
+        logEvent("network_monitor", "Registered default network callback")
+    }
+
+    private fun unregisterNetworkCallbackIfNeeded() {
+        if (!networkCallbackRegistered) {
+            return
+        }
+
+        connectivityManager.unregisterNetworkCallback(networkCallback)
+        networkCallbackRegistered = false
+        logEvent("network_monitor", "Unregistered default network callback")
+    }
+
+    private fun restartConnectionManager(reason: String) {
+        if (!keepRunning) {
+            return
+        }
+
+        apiScope.launch {
+            logEvent("network_reconnect", reason)
+            wsJob?.cancelAndJoin()
+            wsJob = launch {
+                connectionLoop()
+            }
         }
     }
 
@@ -239,6 +315,25 @@ class NavigationWebSocketApiImpl(
             _recentEvents.value = eventBuffer.toList()
         }
         Log.i(TAG, "[$type] $message")
+    }
+
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            logEvent("network_available", "Network became available")
+            if (_connectionState.value != WebSocketConnectionState.Connected) {
+                restartConnectionManager("Network became available")
+            }
+        }
+
+        override fun onLost(network: Network) {
+            logEvent("network_lost", "Network lost")
+        }
+
+        override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+            if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                logEvent("network_capabilities", "Wi-Fi capabilities updated")
+            }
+        }
     }
 }
 
@@ -268,16 +363,21 @@ data class ReliabilityEvent(
 
 @Serializable
 private data class DriveCommandPayload(
-    @SerialName("type") val type: String,
-    @SerialName("target_rpm") val targetRpm: Int,
-    @SerialName("target_direction") val targetDirection: Int,
-    @SerialName("seq") val seq: Long,
-    @SerialName("sent_at_ms") val sentAtMs: Long
+    @SerialName("t") val type: String,
+    @SerialName("r") val targetRpm: Int,
+    @SerialName("d") val targetDirection: Int,
+    @SerialName("s") val seq: Long,
+    @SerialName("m") val sentAtMs: Long
 )
 
 @Serializable
 private data class StopCommandPayload(
-    @SerialName("type") val type: String,
-    @SerialName("seq") val seq: Long,
-    @SerialName("sent_at_ms") val sentAtMs: Long
+    @SerialName("t") val type: String,
+    @SerialName("s") val seq: Long,
+    @SerialName("m") val sentAtMs: Long
+)
+
+private data class Callbacks(
+    val onMessage: (String) -> Unit = {},
+    val onClose: () -> Unit = {}
 )

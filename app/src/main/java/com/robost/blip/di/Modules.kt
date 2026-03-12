@@ -23,6 +23,7 @@ import okhttp3.OkHttpClient
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 import java.util.concurrent.TimeUnit
+import org.koin.android.ext.koin.androidContext
 
 val viewModelModule = module {
     viewModel { HomeViewModel(get(), get()) }
@@ -34,7 +35,7 @@ private const val WS_PING_INTERVAL_SECONDS = 15L
 val networkModule = module {
     // Ktor
     factory<NavigationApi> { NavigationApiImpl(get()) }
-    factory<NavigationWebSocketApi> { NavigationWebSocketApiImpl(get()) }
+    factory<NavigationWebSocketApi> { NavigationWebSocketApiImpl(get(), androidContext()) }
 
     single {
         val okHttpClient = OkHttpClient.Builder()
