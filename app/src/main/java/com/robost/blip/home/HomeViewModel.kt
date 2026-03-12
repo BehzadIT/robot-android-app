@@ -5,97 +5,108 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.robost.blip.data.NavigationApi
 import com.robost.blip.data.NavigationWebSocketApi
-import kotlinx.coroutines.FlowPreview
+import com.robost.blip.data.ReliabilityEvent
+import com.robost.blip.data.WebSocketConnectionState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 
-@OptIn(FlowPreview::class)
+private const val TAG = "HomeViewModel"
+private const val DRIVE_REFRESH_MS = 100L
+
 class HomeViewModel(
     val navigationApi: NavigationApi,
     val navigationWebSocketApi: NavigationWebSocketApi
 ) : ViewModel() {
-    private val _status = MutableStateFlow<String?>(null)
-    val status = _status.asStateFlow()
+    private val _status = MutableStateFlow("Idle")
+    val status: StateFlow<String> = _status.asStateFlow()
 
     private val _navigateCommand = MutableStateFlow<NavigateCommand>(NavigateCommand.Stop)
     val navigateCommand = _navigateCommand.asStateFlow()
 
-    private var driveCommandJob: Job? = null
-    private var wasStopped = true  // Track if the last command was a stop
-    private var lastSentSignedRpm: Int = 0  // Track the last sent RPM value
-    private val rpmChangeThreshold = 50  // RPM change threshold to bypass debouncing
+    val connectionState: StateFlow<WebSocketConnectionState> = navigationWebSocketApi.connectionState
+    val recentEvents: StateFlow<List<ReliabilityEvent>> = navigationWebSocketApi.recentEvents
+
+    private var driveRefreshJob: Job? = null
+    private var latestDriveCommand: NavigateCommand.Drive? = null
+    private var isDriveActive = false
 
     init {
-        navigationWebSocketApi.connect()
+        navigationWebSocketApi.connect(
+            onMessage = { message ->
+                Log.i(TAG, "Pico message: $message")
+            },
+            onClose = {
+                Log.i(TAG, "WebSocket closed; waiting for reconnect manager")
+            }
+        )
+    }
 
-        viewModelScope.launch {
-            _navigateCommand.collect { command ->
-                when (command) {
-                    is NavigateCommand.Drive -> {
-                        // Cancel any existing drive command collection
-                        driveCommandJob?.cancel()
+    fun onDriveSliderPositionChange(signedTargetRpm: Int) {
+        Log.i(TAG, "New slider position: $signedTargetRpm")
+        val command = NavigateCommand.Drive.fromSignedRpm(signedTargetRpm)
+        latestDriveCommand = command
+        _navigateCommand.value = command
 
-                        // Start a new collection for drive commands
-                        driveCommandJob = viewModelScope.launch {
-                            val driveFlow = _navigateCommand
-                                .filterIsInstance<NavigateCommand.Drive>()
+        if (!isDriveActive) {
+            isDriveActive = true
+            startDriveRefreshLoop()
+        }
+    }
 
-                            driveFlow.collectLatest { driveCommand ->
-                                val rpmChange = (driveCommand.signedTargetRpm - lastSentSignedRpm).absoluteValue
-                                val isLargeChange = rpmChange >= rpmChangeThreshold
+    fun onDriveSliderRelease() {
+        Log.d(TAG, "Slider released")
+        isDriveActive = false
+        latestDriveCommand = null
+        _navigateCommand.value = NavigateCommand.Stop
+        stopDriveLoopAndSendStop()
+    }
 
-                                // Only apply debounce if:
-                                // 1. Previous state wasn't stopped AND
-                                // 2. RPM change is not a large change (>= threshold)
-                                val shouldDebounce = (!wasStopped && !isLargeChange)
+    override fun onCleared() {
+        navigationWebSocketApi.disconnect()
+        super.onCleared()
+    }
 
-                                if (shouldDebounce) delay(500)
+    private fun startDriveRefreshLoop() {
+        driveRefreshJob?.cancel()
 
-                                lastSentSignedRpm = driveCommand.signedTargetRpm
-                                wasStopped = false
-                                Log.d(
-                                    "HomeViewModel",
-                                    "Sending drive command: ${driveCommand.absTargetRpm} ${driveCommand.targetDirection.name}"
-                                )
-                                navigationWebSocketApi.sendDriveCommand(
-                                    driveCommand.absTargetRpm,
-                                    driveCommand.targetDirection.value
-                                )
-                            }
-                        }
-                    }
-
-                    is NavigateCommand.Stop -> {
-                        // Cancel any ongoing drive command collection first
-                        driveCommandJob?.cancel()
-
-                        // Execute stop command
-                        wasStopped = true
-                        lastSentSignedRpm = 0
-                        _status.value = "Stopping!"
-                        Log.d("HomeViewModel", "Sending stop command")
-                        navigationWebSocketApi.sendStopCommand()
-                        _status.value = "Stopped!"
-                    }
+        // Best practice for low-latency control here is latest-intent sampling,
+        // not debounce: keep the freshest operator command and transmit it at a
+        // fixed cadence while the drag remains active.
+        driveRefreshJob = viewModelScope.launch {
+            while (isDriveActive) {
+                val command = latestDriveCommand ?: break
+                val sent = navigationWebSocketApi.sendDriveCommand(
+                    targetRpm = command.absTargetRpm,
+                    targetDirection = command.targetDirection.value
+                )
+                _status.value = if (sent) {
+                    "Driving ${command.targetDirection.name.lowercase()} at ${command.absTargetRpm} RPM"
+                } else {
+                    "Drive pending reconnect"
                 }
+                delay(DRIVE_REFRESH_MS)
             }
         }
     }
 
-    fun onDriveSliderPositionChange(signedTargetRpm: Int) {
-        Log.i("HomeViewModel", "new slider position: $signedTargetRpm")
-        _navigateCommand.value = NavigateCommand.Drive.fromSignedRpm(signedTargetRpm)
-    }
+    private fun stopDriveLoopAndSendStop() {
+        driveRefreshJob?.cancel()
+        driveRefreshJob = null
+        _status.value = "Stopping"
 
-    fun onDriveSliderRelease() {
-        Log.d("HomeViewModel", "slider released")
-        _navigateCommand.value = NavigateCommand.Stop
+        viewModelScope.launch {
+            val sent = navigationWebSocketApi.sendStopCommand()
+            _status.value = if (sent) {
+                "Stopped"
+            } else {
+                "Stop requested; waiting for Pico timeout"
+            }
+        }
     }
 }
 
@@ -115,13 +126,13 @@ sealed interface NavigateCommand {
 
         companion object {
             fun fromSignedRpm(signedTargetRpm: Int): Drive {
-                val direction = if (signedTargetRpm >= 0f) Direction.FORWARD else Direction.REVERSE
+                val direction = if (signedTargetRpm >= 0) Direction.FORWARD else Direction.REVERSE
                 return Drive(signedTargetRpm.absoluteValue, direction)
             }
         }
     }
 
-    object Stop : NavigateCommand {
+    data object Stop : NavigateCommand {
         override val absTargetRpm = 0
         override val signedTargetRpm = 0
     }

@@ -1,7 +1,6 @@
 package com.robost.blip.home
 
 import android.util.Log
-import android.view.MotionEvent
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.Interaction
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -15,16 +14,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.unit.dp
+import com.robost.blip.data.ReliabilityEvent
+import com.robost.blip.data.WebSocketConnectionState
 
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
     driveSliderPosition: Float,
+    status: String,
+    connectionState: WebSocketConnectionState,
+    latestEvent: ReliabilityEvent?,
     onDriveSliderPositionChange: (Int) -> Unit,
     onDriveSliderRelease: () -> Unit,
 ) {
@@ -59,13 +60,27 @@ fun HomeScreen(
                 onValueChangeFinished = { onDriveSliderRelease() },
                 valueRange = -300f..300f
             )
+            Text(text = "Transport: ${connectionState.label()}")
+            Text(text = "Status: $status")
             if (driveSliderPosition > 0f) {
-                Text(text = "Driving Forward at ${driveSliderPosition.toInt()}%")
+                Text(text = "Driving Forward at ${driveSliderPosition.toInt()} RPM")
             } else if (driveSliderPosition < 0f) {
-                Text(text = "Driving Backward at ${-driveSliderPosition.toInt()}%")
+                Text(text = "Driving Backward at ${-driveSliderPosition.toInt()} RPM")
             } else {
                 Text(text = "Stopped")
+            }
+            latestEvent?.let { event ->
+                Text(text = "Last event: ${event.type} - ${event.message}")
             }
         }
     }
 }
+
+private fun WebSocketConnectionState.label(): String =
+    when (this) {
+        WebSocketConnectionState.Connected -> "Connected"
+        WebSocketConnectionState.Connecting -> "Connecting"
+        WebSocketConnectionState.Disconnected -> "Disconnected"
+        is WebSocketConnectionState.Failed -> "Failed: $reason"
+        is WebSocketConnectionState.Reconnecting -> "Reconnecting (#$attempt)"
+    }

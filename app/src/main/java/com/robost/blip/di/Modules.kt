@@ -22,12 +22,14 @@ import io.ktor.serialization.kotlinx.json.json
 import okhttp3.OkHttpClient
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
+import java.util.concurrent.TimeUnit
 
 val viewModelModule = module {
     viewModel { HomeViewModel(get(), get()) }
 }
 
 private const val TIME_OUT = 6000L
+private const val WS_PING_INTERVAL_SECONDS = 15L
 
 val networkModule = module {
     // Ktor
@@ -35,7 +37,16 @@ val networkModule = module {
     factory<NavigationWebSocketApi> { NavigationWebSocketApiImpl(get()) }
 
     single {
+        val okHttpClient = OkHttpClient.Builder()
+            // Best practice with Ktor's OkHttp engine is to configure websocket
+            // ping on the underlying OkHttp client, not via the Ktor plugin.
+            .pingInterval(WS_PING_INTERVAL_SECONDS, TimeUnit.SECONDS)
+            .build()
+
         HttpClient(OkHttp) {
+            engine {
+                preconfigured = okHttpClient
+            }
             install(ContentNegotiation) {
                 json()
             }
