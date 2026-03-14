@@ -1,4 +1,4 @@
-package com.robost.blip.navigation
+package com.robost.blip.feature.drivecontrol.domain
 
 /**
  * Shared Android-side control constants for the drivetrain UI and transport.

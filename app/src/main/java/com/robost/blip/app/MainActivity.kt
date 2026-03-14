@@ -1,4 +1,4 @@
-package com.robost.blip
+package com.robost.blip.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -10,9 +10,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.robost.blip.home.HomeScreen
-import com.robost.blip.home.HomeViewModel
-import com.robost.blip.ui.theme.BlipTheme
+import com.robost.blip.core.designsystem.BlipTheme
+import com.robost.blip.feature.drivecontrol.ui.HomeScreen
+import com.robost.blip.feature.drivecontrol.ui.HomeViewModel
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class MainActivity : ComponentActivity() {

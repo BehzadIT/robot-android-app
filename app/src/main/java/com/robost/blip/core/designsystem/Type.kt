@@ -1,4 +1,4 @@
-package com.robost.blip.ui.theme
+package com.robost.blip.core.designsystem
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

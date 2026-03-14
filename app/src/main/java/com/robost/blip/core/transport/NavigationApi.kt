@@ -1,10 +1,9 @@
-package com.robost.blip.data
+package com.robost.blip.core.transport
 
+import com.robost.blip.core.protocol.navigation.DriveRequest
 import io.ktor.client.HttpClient
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 
 interface NavigationApi {
     suspend fun drive(targetRpm: Int, targetDirection: Int, targetAngle: Int)
@@ -38,11 +37,3 @@ class NavigationApiImpl(val httpClient: HttpClient) : NavigationApi {
         httpClient.put("${BASE_URL}recover")
     }
 }
-
-@Serializable
-data class DriveRequest(
-    @SerialName("type") val type: String,
-    @SerialName("target_rpm") val targetRpm: Int,
-    @SerialName("target_direction") val targetDirection: Int,
-    @SerialName("target_angle") val targetAngle: Int
-)

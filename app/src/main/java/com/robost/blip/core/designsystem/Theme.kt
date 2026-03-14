@@ -1,4 +1,4 @@
-package com.robost.blip.ui.theme
+package com.robost.blip.core.designsystem
 
 import android.app.Activity
 import android.os.Build

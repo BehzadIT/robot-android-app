@@ -1,11 +1,11 @@
-package com.robost.blip.di
+package com.robost.blip.app.di
 
 import android.util.Log
-import com.robost.blip.data.NavigationApi
-import com.robost.blip.data.NavigationApiImpl
-import com.robost.blip.data.NavigationWebSocketApi
-import com.robost.blip.data.NavigationWebSocketApiImpl
-import com.robost.blip.home.HomeViewModel
+import com.robost.blip.core.transport.NavigationApi
+import com.robost.blip.core.transport.NavigationApiImpl
+import com.robost.blip.core.transport.NavigationWebSocketApi
+import com.robost.blip.core.transport.NavigationWebSocketApiImpl
+import com.robost.blip.feature.drivecontrol.ui.HomeViewModel
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.DefaultRequest

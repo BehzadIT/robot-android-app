@@ -1,8 +1,8 @@
-package com.robost.blip
+package com.robost.blip.app
 
 import android.app.Application
-import com.robost.blip.di.networkModule
-import com.robost.blip.di.viewModelModule
+import com.robost.blip.app.di.networkModule
+import com.robost.blip.app.di.viewModelModule
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.GlobalContext.startKoin
 

@@ -1,10 +1,14 @@
-package com.robost.blip.data
+package com.robost.blip.core.transport
 
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.util.Log
+import com.robost.blip.core.protocol.navigation.DriveCommandPayload
+import com.robost.blip.core.protocol.navigation.RecoverCommandPayload
+import com.robost.blip.core.protocol.navigation.StopCommandPayload
+import com.robost.blip.core.protocol.navigation.summarizeNavigationServerEvent
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.webSocket
@@ -27,13 +31,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 private const val TAG = "NavigationWebSocket"
 private const val EVENT_BUFFER_SIZE = 40
@@ -270,16 +269,7 @@ class NavigationWebSocketApiImpl(
     }
 
     private fun summarizeIncomingMessage(message: String): String {
-        return try {
-            val payload = Json.parseToJsonElement(message).jsonObject
-            when (payload["t"]?.jsonPrimitive?.contentOrNull) {
-                "a" -> "ack code=${payload["c"]?.jsonPrimitive?.contentOrNull} seq=${payload["s"]?.jsonPrimitive?.contentOrNull}"
-                "e" -> "error code=${payload["c"]?.jsonPrimitive?.contentOrNull}"
-                else -> message.take(120)
-            }
-        } catch (_: Exception) {
-            message.take(120)
-        }
+        return summarizeNavigationServerEvent(message)
     }
 
     private fun registerNetworkCallbackIfNeeded() {
@@ -375,30 +365,6 @@ data class ReliabilityEvent(
     val timestampMs: Long,
     val type: String,
     val message: String
-)
-
-@Serializable
-private data class DriveCommandPayload(
-    @SerialName("t") val type: String,
-    @SerialName("r") val targetRpm: Int,
-    @SerialName("d") val targetDirection: Int,
-    @SerialName("a") val targetAngle: Int,
-    @SerialName("s") val seq: Long,
-    @SerialName("m") val sentAtMs: Long
-)
-
-@Serializable
-private data class StopCommandPayload(
-    @SerialName("t") val type: String,
-    @SerialName("s") val seq: Long,
-    @SerialName("m") val sentAtMs: Long
-)
-
-@Serializable
-private data class RecoverCommandPayload(
-    @SerialName("t") val type: String,
-    @SerialName("s") val seq: Long,
-    @SerialName("m") val sentAtMs: Long
 )
 
 private data class Callbacks(

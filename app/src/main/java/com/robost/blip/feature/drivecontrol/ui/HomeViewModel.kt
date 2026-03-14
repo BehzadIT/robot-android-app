@@ -1,28 +1,26 @@
-package com.robost.blip.home
+package com.robost.blip.feature.drivecontrol.ui
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.robost.blip.data.NavigationApi
-import com.robost.blip.data.NavigationWebSocketApi
-import com.robost.blip.data.ReliabilityEvent
-import com.robost.blip.data.WebSocketConnectionState
-import com.robost.blip.navigation.DRIVE_REFRESH_MS
-import com.robost.blip.navigation.DRIVE_START_EXIT_DEADBAND_RPM
-import com.robost.blip.navigation.DRIVE_STOP_ENTER_DEADBAND_RPM
-import com.robost.blip.navigation.STEERING_ANGLE_DEFAULT
-import com.robost.blip.navigation.STEERING_ANGLE_MAX
-import com.robost.blip.navigation.STEERING_ANGLE_MIN
+import com.robost.blip.core.protocol.navigation.NavigationServerEvent
+import com.robost.blip.core.protocol.navigation.parseNavigationServerEvent
+import com.robost.blip.core.transport.NavigationApi
+import com.robost.blip.core.transport.NavigationWebSocketApi
+import com.robost.blip.core.transport.ReliabilityEvent
+import com.robost.blip.core.transport.WebSocketConnectionState
+import com.robost.blip.feature.drivecontrol.domain.DRIVE_REFRESH_MS
+import com.robost.blip.feature.drivecontrol.domain.DRIVE_START_EXIT_DEADBAND_RPM
+import com.robost.blip.feature.drivecontrol.domain.DRIVE_STOP_ENTER_DEADBAND_RPM
+import com.robost.blip.feature.drivecontrol.domain.STEERING_ANGLE_DEFAULT
+import com.robost.blip.feature.drivecontrol.domain.STEERING_ANGLE_MAX
+import com.robost.blip.feature.drivecontrol.domain.STEERING_ANGLE_MIN
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlin.math.absoluteValue
 
 private const val TAG = "HomeViewModel"
@@ -201,18 +199,12 @@ class HomeViewModel(
     }
 
     private fun handlePicoMessage(message: String) {
-        val payload = try {
-            Json.parseToJsonElement(message).jsonObject
-        } catch (_: Exception) {
-            return
-        }
-
-        when (payload["t"]?.jsonPrimitive?.contentOrNull) {
-            "a" -> when (payload["c"]?.jsonPrimitive?.contentOrNull) {
+        when (val event = parseNavigationServerEvent(message) ?: return) {
+            is NavigationServerEvent.Ack -> when (event.code) {
                 "s" -> _status.value = STATUS_STOPPED
                 "r" -> _status.value = "Recovered"
             }
-            "e" -> {
+            is NavigationServerEvent.Error -> {
                 if (_status.value == STATUS_STOPPING) {
                     _status.value = STATUS_STOP_NOT_CONFIRMED
                 }
