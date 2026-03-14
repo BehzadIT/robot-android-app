@@ -26,12 +26,14 @@ class MainActivity : ComponentActivity() {
             BlipTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     val navigateCommand by viewModel.navigateCommand.collectAsStateWithLifecycle()
+                    val steeringAngle by viewModel.steeringAngle.collectAsStateWithLifecycle()
                     val status by viewModel.status.collectAsStateWithLifecycle()
                     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
                     val recentEvents by viewModel.recentEvents.collectAsStateWithLifecycle()
                     HomeScreen(
                         modifier = Modifier.padding(innerPadding),
                         driveSliderPosition = navigateCommand.signedTargetRpm.toFloat(),
+                        steeringSliderPosition = steeringAngle.toFloat(),
                         status = status,
                         connectionState = connectionState,
                         latestEvent = recentEvents.lastOrNull(),
@@ -40,6 +42,15 @@ class MainActivity : ComponentActivity() {
                         },
                         onDriveSliderRelease = {
                             viewModel.onDriveSliderRelease()
+                        },
+                        onSteeringSliderPositionChange = {
+                            viewModel.onSteeringSliderPositionChange(it)
+                        },
+                        onSteeringSliderRelease = {
+                            viewModel.onSteeringSliderRelease()
+                        },
+                        onRecoverRequested = {
+                            viewModel.onRecoverRequested()
                         }
                     )
                 }

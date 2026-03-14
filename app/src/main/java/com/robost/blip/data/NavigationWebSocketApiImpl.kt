@@ -88,17 +88,18 @@ class NavigationWebSocketApiImpl(
         }
     }
 
-    override suspend fun sendDriveCommand(targetRpm: Int, targetDirection: Int): Boolean {
+    override suspend fun sendDriveCommand(targetRpm: Int, targetDirection: Int, targetAngle: Int): Boolean {
         val drivePayload = DriveCommandPayload(
             type = "d",
             targetRpm = targetRpm,
             targetDirection = targetDirection,
+            targetAngle = targetAngle,
             seq = sequence.incrementAndGet(),
             sentAtMs = System.currentTimeMillis()
         )
         return sendSerializedCommand(
             payload = drivePayload,
-            description = "drive seq=${drivePayload.seq} rpm=$targetRpm dir=$targetDirection",
+            description = "drive seq=${drivePayload.seq} rpm=$targetRpm dir=$targetDirection angle=$targetAngle",
             highVolume = true
         )
     }
@@ -112,6 +113,19 @@ class NavigationWebSocketApiImpl(
         return sendSerializedCommand(
             payload = stopPayload,
             description = "stop seq=${stopPayload.seq}",
+            highVolume = false
+        )
+    }
+
+    override suspend fun sendRecoverCommand(): Boolean {
+        val recoverPayload = RecoverCommandPayload(
+            type = "r",
+            seq = sequence.incrementAndGet(),
+            sentAtMs = System.currentTimeMillis()
+        )
+        return sendSerializedCommand(
+            payload = recoverPayload,
+            description = "recover seq=${recoverPayload.seq}",
             highVolume = false
         )
     }
@@ -227,6 +241,7 @@ class NavigationWebSocketApiImpl(
             val body = when (payload) {
                 is DriveCommandPayload -> Json.encodeToString(payload)
                 is StopCommandPayload -> Json.encodeToString(payload)
+                is RecoverCommandPayload -> Json.encodeToString(payload)
                 else -> error("Unsupported command payload")
             }
             session.send(Frame.Text(body))
@@ -342,8 +357,9 @@ interface NavigationWebSocketApi {
     val recentEvents: StateFlow<List<ReliabilityEvent>>
 
     fun connect(onMessage: (String) -> Unit = {}, onClose: () -> Unit = {})
-    suspend fun sendDriveCommand(targetRpm: Int, targetDirection: Int): Boolean
+    suspend fun sendDriveCommand(targetRpm: Int, targetDirection: Int, targetAngle: Int): Boolean
     suspend fun sendStopCommand(): Boolean
+    suspend fun sendRecoverCommand(): Boolean
     fun disconnect()
 }
 
@@ -366,12 +382,20 @@ private data class DriveCommandPayload(
     @SerialName("t") val type: String,
     @SerialName("r") val targetRpm: Int,
     @SerialName("d") val targetDirection: Int,
+    @SerialName("a") val targetAngle: Int,
     @SerialName("s") val seq: Long,
     @SerialName("m") val sentAtMs: Long
 )
 
 @Serializable
 private data class StopCommandPayload(
+    @SerialName("t") val type: String,
+    @SerialName("s") val seq: Long,
+    @SerialName("m") val sentAtMs: Long
+)
+
+@Serializable
+private data class RecoverCommandPayload(
     @SerialName("t") val type: String,
     @SerialName("s") val seq: Long,
     @SerialName("m") val sentAtMs: Long

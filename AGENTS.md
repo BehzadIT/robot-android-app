@@ -16,5 +16,6 @@ This repo contains the Android operator app for the robot project.
 - When making non-trivial decisions, state the relevant best practice, design pattern, technology choice, and architecture tradeoff.
 - Prefer reliability-oriented networking patterns for mobile clients: explicit connection state, bounded reconnect/backoff, keepalive configured for the actual engine in use, and transport observability.
 - Log meaningful transport and protocol events, but classify expected reconnects as normal operational signals rather than fatal failures.
-- Add concise code comments or docstrings where connection lifecycle, retry policy, or protocol semantics are not obvious from the code.
+- Code documentation matters in this project. Add clear comments or docstrings for non-obvious behavior, especially around connection lifecycle, retry/backoff policy, protocol semantics, state ownership, and failure handling.
+- Avoid commenting obvious UI or Kotlin mechanics; document the parts that encode system behavior or architectural assumptions.
 - If app behavior or protocol changes, update the shared docs alongside the code.
