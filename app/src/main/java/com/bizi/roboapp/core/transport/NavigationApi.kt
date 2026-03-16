@@ -1,6 +1,6 @@
-package com.robost.blip.core.transport
+package com.bizi.roboapp.core.transport
 
-import com.robost.blip.core.protocol.navigation.DriveRequest
+import com.bizi.roboapp.core.protocol.navigation.DriveRequest
 import io.ktor.client.HttpClient
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody

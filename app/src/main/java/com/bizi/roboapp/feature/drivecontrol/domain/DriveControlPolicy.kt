@@ -1,4 +1,4 @@
-package com.robost.blip.feature.drivecontrol.domain
+package com.bizi.roboapp.feature.drivecontrol.domain
 
 /**
  * Shared Android-side control constants for the drivetrain UI and transport.

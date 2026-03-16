@@ -1,14 +1,14 @@
-package com.robost.blip.core.transport
+package com.bizi.roboapp.core.transport
 
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.util.Log
-import com.robost.blip.core.protocol.navigation.DriveCommandPayload
-import com.robost.blip.core.protocol.navigation.RecoverCommandPayload
-import com.robost.blip.core.protocol.navigation.StopCommandPayload
-import com.robost.blip.core.protocol.navigation.summarizeNavigationServerEvent
+import com.bizi.roboapp.core.protocol.navigation.DriveCommandPayload
+import com.bizi.roboapp.core.protocol.navigation.RecoverCommandPayload
+import com.bizi.roboapp.core.protocol.navigation.StopCommandPayload
+import com.bizi.roboapp.core.protocol.navigation.summarizeNavigationServerEvent
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.webSocket
@@ -31,7 +31,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 private const val TAG = "NavigationWebSocket"

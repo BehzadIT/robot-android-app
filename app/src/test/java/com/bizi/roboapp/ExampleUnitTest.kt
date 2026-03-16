@@ -1,4 +1,4 @@
-package com.robost.blip
+package com.bizi.roboapp
 
 import org.junit.Test
 

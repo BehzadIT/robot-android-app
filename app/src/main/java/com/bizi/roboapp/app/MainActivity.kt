@@ -1,4 +1,4 @@
-package com.robost.blip.app
+package com.bizi.roboapp.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -10,9 +10,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.robost.blip.core.designsystem.BlipTheme
-import com.robost.blip.feature.drivecontrol.ui.HomeScreen
-import com.robost.blip.feature.drivecontrol.ui.HomeViewModel
+import com.bizi.roboapp.core.designsystem.RoboAppTheme
+import com.bizi.roboapp.feature.drivecontrol.ui.HomeScreen
+import com.bizi.roboapp.feature.drivecontrol.ui.HomeViewModel
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class MainActivity : ComponentActivity() {
@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            BlipTheme {
+            RoboAppTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     val navigateCommand by viewModel.navigateCommand.collectAsStateWithLifecycle()
                     val steeringAngle by viewModel.steeringAngle.collectAsStateWithLifecycle()

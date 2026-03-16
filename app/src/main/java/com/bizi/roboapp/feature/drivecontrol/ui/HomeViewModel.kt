@@ -1,20 +1,20 @@
-package com.robost.blip.feature.drivecontrol.ui
+package com.bizi.roboapp.feature.drivecontrol.ui
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.robost.blip.core.protocol.navigation.NavigationServerEvent
-import com.robost.blip.core.protocol.navigation.parseNavigationServerEvent
-import com.robost.blip.core.transport.NavigationApi
-import com.robost.blip.core.transport.NavigationWebSocketApi
-import com.robost.blip.core.transport.ReliabilityEvent
-import com.robost.blip.core.transport.WebSocketConnectionState
-import com.robost.blip.feature.drivecontrol.domain.DRIVE_REFRESH_MS
-import com.robost.blip.feature.drivecontrol.domain.DRIVE_START_EXIT_DEADBAND_RPM
-import com.robost.blip.feature.drivecontrol.domain.DRIVE_STOP_ENTER_DEADBAND_RPM
-import com.robost.blip.feature.drivecontrol.domain.STEERING_ANGLE_DEFAULT
-import com.robost.blip.feature.drivecontrol.domain.STEERING_ANGLE_MAX
-import com.robost.blip.feature.drivecontrol.domain.STEERING_ANGLE_MIN
+import com.bizi.roboapp.core.protocol.navigation.NavigationServerEvent
+import com.bizi.roboapp.core.protocol.navigation.parseNavigationServerEvent
+import com.bizi.roboapp.core.transport.NavigationApi
+import com.bizi.roboapp.core.transport.NavigationWebSocketApi
+import com.bizi.roboapp.core.transport.ReliabilityEvent
+import com.bizi.roboapp.core.transport.WebSocketConnectionState
+import com.bizi.roboapp.feature.drivecontrol.domain.DRIVE_REFRESH_MS
+import com.bizi.roboapp.feature.drivecontrol.domain.DRIVE_START_EXIT_DEADBAND_RPM
+import com.bizi.roboapp.feature.drivecontrol.domain.DRIVE_STOP_ENTER_DEADBAND_RPM
+import com.bizi.roboapp.feature.drivecontrol.domain.STEERING_ANGLE_DEFAULT
+import com.bizi.roboapp.feature.drivecontrol.domain.STEERING_ANGLE_MAX
+import com.bizi.roboapp.feature.drivecontrol.domain.STEERING_ANGLE_MIN
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,6 +50,8 @@ class HomeViewModel(
     private var driveRefreshJob: Job? = null
     private var latestDriveCommand: NavigateCommand.Drive? = null
     private var isDriveActive = false
+    private var awaitingStopAck = false
+    private var pendingDriveAfterStop: NavigateCommand.Drive? = null
 
     init {
         navigationWebSocketApi.connect(
@@ -59,6 +61,8 @@ class HomeViewModel(
             },
             onClose = {
                 Log.i(TAG, "WebSocket closed; waiting for reconnect manager")
+                awaitingStopAck = false
+                pendingDriveAfterStop = null
                 if (_status.value == STATUS_STOPPING) {
                     _status.value = STATUS_STOP_NOT_CONFIRMED
                 }
@@ -69,6 +73,23 @@ class HomeViewModel(
     fun onDriveSliderPositionChange(signedTargetRpm: Int) {
         Log.i(TAG, "New slider position: $signedTargetRpm")
         val absRpm = signedTargetRpm.absoluteValue
+        val nextCommand = NavigateCommand.Drive.fromSignedRpm(
+            signedTargetRpm = signedTargetRpm,
+            targetAngle = _steeringAngle.value
+        )
+
+        if (awaitingStopAck) {
+            if (absRpm < DRIVE_START_EXIT_DEADBAND_RPM) {
+                pendingDriveAfterStop = null
+                latestDriveCommand = null
+                _navigateCommand.value = NavigateCommand.Stop
+                return
+            }
+            pendingDriveAfterStop = nextCommand
+            latestDriveCommand = null
+            _navigateCommand.value = NavigateCommand.Stop
+            return
+        }
 
         // The zero zone uses hysteresis so the UI does not chatter between
         // stop/start when the thumb hovers around zero. While inside the stop
@@ -81,18 +102,29 @@ class HomeViewModel(
             stopDriveLoopAndSendStop()
             return
         }
+
+        val currentDirection = latestDriveCommand?.targetDirection
+        if (isDriveActive && currentDirection != null && currentDirection != nextCommand.targetDirection) {
+            // A direction reversal is serialized through an acknowledged stop.
+            // The Pico websocket handler waits for stop completion before it
+            // reads the next frame, so sending reverse-drive immediately after
+            // stop can backlog the socket and trigger unstable firmware paths.
+            isDriveActive = false
+            latestDriveCommand = null
+            pendingDriveAfterStop = nextCommand
+            _navigateCommand.value = NavigateCommand.Stop
+            stopDriveLoopAndSendStop()
+            return
+        }
+
         if (!isDriveActive && absRpm < DRIVE_START_EXIT_DEADBAND_RPM) {
             latestDriveCommand = null
             _navigateCommand.value = NavigateCommand.Stop
             return
         }
 
-        val command = NavigateCommand.Drive.fromSignedRpm(
-            signedTargetRpm = signedTargetRpm,
-            targetAngle = _steeringAngle.value
-        )
-        latestDriveCommand = command
-        _navigateCommand.value = command
+        latestDriveCommand = nextCommand
+        _navigateCommand.value = nextCommand
 
         if (!isDriveActive) {
             isDriveActive = true
@@ -122,6 +154,7 @@ class HomeViewModel(
         Log.d(TAG, "Slider released")
         isDriveActive = false
         latestDriveCommand = null
+        pendingDriveAfterStop = null
         _navigateCommand.value = NavigateCommand.Stop
         _steeringAngle.value = STEERING_ANGLE_DEFAULT
         stopDriveLoopAndSendStop()
@@ -130,7 +163,9 @@ class HomeViewModel(
     fun onRecoverRequested() {
         val wasDriveActive = isDriveActive
         isDriveActive = false
+        awaitingStopAck = false
         latestDriveCommand = null
+        pendingDriveAfterStop = null
         _navigateCommand.value = NavigateCommand.Stop
         _steeringAngle.value = STEERING_ANGLE_DEFAULT
         driveRefreshJob?.cancel()
@@ -186,6 +221,7 @@ class HomeViewModel(
     private fun stopDriveLoopAndSendStop() {
         driveRefreshJob?.cancel()
         driveRefreshJob = null
+        awaitingStopAck = true
         _status.value = STATUS_STOPPING
 
         viewModelScope.launch {
@@ -193,6 +229,8 @@ class HomeViewModel(
             _status.value = if (sent) {
                 STATUS_STOPPING
             } else {
+                awaitingStopAck = false
+                pendingDriveAfterStop = null
                 STATUS_STOP_NOT_CONFIRMED
             }
         }
@@ -201,11 +239,24 @@ class HomeViewModel(
     private fun handlePicoMessage(message: String) {
         when (val event = parseNavigationServerEvent(message) ?: return) {
             is NavigationServerEvent.Ack -> when (event.code) {
-                "s" -> _status.value = STATUS_STOPPED
+                "s" -> {
+                    awaitingStopAck = false
+                    _status.value = STATUS_STOPPED
+                    val queuedCommand = pendingDriveAfterStop
+                    if (queuedCommand != null) {
+                        pendingDriveAfterStop = null
+                        latestDriveCommand = queuedCommand
+                        _navigateCommand.value = queuedCommand
+                        isDriveActive = true
+                        startDriveRefreshLoop()
+                    }
+                }
                 "r" -> _status.value = "Recovered"
             }
             is NavigationServerEvent.Error -> {
                 if (_status.value == STATUS_STOPPING) {
+                    awaitingStopAck = false
+                    pendingDriveAfterStop = null
                     _status.value = STATUS_STOP_NOT_CONFIRMED
                 }
             }

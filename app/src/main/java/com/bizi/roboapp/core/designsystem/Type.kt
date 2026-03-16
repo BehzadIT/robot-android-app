@@ -1,4 +1,4 @@
-package com.robost.blip.core.designsystem
+package com.bizi.roboapp.core.designsystem
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

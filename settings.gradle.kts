@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Blip"
+rootProject.name = "RoboApp"
 include(":app")
  

@@ -1,4 +1,4 @@
-package com.robost.blip.core.protocol.navigation
+package com.bizi.roboapp.core.protocol.navigation
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

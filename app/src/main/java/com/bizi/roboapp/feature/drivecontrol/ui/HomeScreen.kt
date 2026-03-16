@@ -1,4 +1,4 @@
-package com.robost.blip.feature.drivecontrol.ui
+package com.bizi.roboapp.feature.drivecontrol.ui
 
 import android.util.Log
 import androidx.compose.foundation.interaction.DragInteraction
@@ -17,11 +17,11 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.robost.blip.core.transport.ReliabilityEvent
-import com.robost.blip.core.transport.WebSocketConnectionState
-import com.robost.blip.feature.drivecontrol.domain.DRIVE_STOP_ENTER_DEADBAND_RPM
-import com.robost.blip.feature.drivecontrol.domain.STEERING_ANGLE_MAX
-import com.robost.blip.feature.drivecontrol.domain.STEERING_ANGLE_MIN
+import com.bizi.roboapp.core.transport.ReliabilityEvent
+import com.bizi.roboapp.core.transport.WebSocketConnectionState
+import com.bizi.roboapp.feature.drivecontrol.domain.DRIVE_STOP_ENTER_DEADBAND_RPM
+import com.bizi.roboapp.feature.drivecontrol.domain.STEERING_ANGLE_MAX
+import com.bizi.roboapp.feature.drivecontrol.domain.STEERING_ANGLE_MIN
 
 @Composable
 fun HomeScreen(

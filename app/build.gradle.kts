@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.robost.blip"
+    namespace = "com.bizi.roboapp"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.robost.blip"
+        applicationId = "com.bizi.roboapp"
         minSdk = 30
         targetSdk = 35
         versionCode = 1
