@@ -19,15 +19,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.bizi.roboapp.core.transport.ReliabilityEvent
 import com.bizi.roboapp.core.transport.WebSocketConnectionState
-import com.bizi.roboapp.feature.drivecontrol.domain.DRIVE_STOP_ENTER_DEADBAND_RPM
-import com.bizi.roboapp.feature.drivecontrol.domain.STEERING_ANGLE_MAX
-import com.bizi.roboapp.feature.drivecontrol.domain.STEERING_ANGLE_MIN
+import com.bizi.roboapp.feature.drivecontrol.domain.DRIVE_STOP_ENTER_DEADBAND_PERCENT
+import com.bizi.roboapp.feature.drivecontrol.domain.THROTTLE_SLIDER_MAX
+import com.bizi.roboapp.feature.drivecontrol.domain.THROTTLE_SLIDER_MIN
+import com.bizi.roboapp.feature.drivecontrol.domain.TURN_SLIDER_MAX
+import com.bizi.roboapp.feature.drivecontrol.domain.TURN_SLIDER_MIN
 
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
     driveSliderPosition: Float,
-    steeringSliderPosition: Float,
+    turnSliderPosition: Float,
     status: String,
     connectionState: WebSocketConnectionState,
     latestEvent: ReliabilityEvent?,
@@ -75,31 +77,31 @@ fun HomeScreen(
                 interactionSource = interactionSource,
                 onValueChange = { newValue -> onDriveSliderPositionChange(newValue.toInt()) },
                 onValueChangeFinished = { onDriveSliderRelease() },
-                valueRange = -300f..300f
+                valueRange = THROTTLE_SLIDER_MIN..THROTTLE_SLIDER_MAX
             )
             Slider(
-                value = steeringSliderPosition,
+                value = turnSliderPosition,
                 interactionSource = steeringInteractionSource,
                 onValueChange = { newValue -> onSteeringSliderPositionChange(newValue.toInt()) },
                 onValueChangeFinished = { onSteeringSliderRelease() },
-                valueRange = STEERING_ANGLE_MIN..STEERING_ANGLE_MAX
+                valueRange = TURN_SLIDER_MIN..TURN_SLIDER_MAX
             )
             Text(text = "Transport: ${connectionState.label()}")
             Text(text = "Status: $status")
-            if (kotlin.math.abs(driveSliderPosition) < DRIVE_STOP_ENTER_DEADBAND_RPM) {
+            if (kotlin.math.abs(driveSliderPosition) <= DRIVE_STOP_ENTER_DEADBAND_PERCENT) {
                 Text(text = "Stopped")
             } else if (driveSliderPosition > 0f) {
-                Text(text = "Driving Forward at ${driveSliderPosition.toInt()} RPM")
+                Text(text = "Throttle Forward ${driveSliderPosition.toInt()}%")
             } else if (driveSliderPosition < 0f) {
-                Text(text = "Driving Backward at ${-driveSliderPosition.toInt()} RPM")
+                Text(text = "Throttle Reverse ${-driveSliderPosition.toInt()}%")
             } else {
                 Text(text = "Stopped")
             }
             Text(
                 text = when {
-                    steeringSliderPosition > 0f -> "Steering Right ${steeringSliderPosition.toInt()} deg"
-                    steeringSliderPosition < 0f -> "Steering Left ${-steeringSliderPosition.toInt()} deg"
-                    else -> "Steering Straight"
+                    turnSliderPosition > 0f -> "Turn Right ${turnSliderPosition.toInt()}%"
+                    turnSliderPosition < 0f -> "Turn Left ${-turnSliderPosition.toInt()}%"
+                    else -> "Turn Straight"
                 }
             )
             Button(onClick = { onRecoverRequested() }) {

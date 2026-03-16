@@ -25,15 +25,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             RoboAppTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    val navigateCommand by viewModel.navigateCommand.collectAsStateWithLifecycle()
-                    val steeringAngle by viewModel.steeringAngle.collectAsStateWithLifecycle()
+                    val driveSliderPosition by viewModel.driveSliderPosition.collectAsStateWithLifecycle()
+                    val turnSliderPosition by viewModel.turnSliderPosition.collectAsStateWithLifecycle()
                     val status by viewModel.status.collectAsStateWithLifecycle()
                     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
                     val recentEvents by viewModel.recentEvents.collectAsStateWithLifecycle()
                     HomeScreen(
                         modifier = Modifier.padding(innerPadding),
-                        driveSliderPosition = navigateCommand.signedTargetRpm.toFloat(),
-                        steeringSliderPosition = steeringAngle.toFloat(),
+                        driveSliderPosition = driveSliderPosition.toFloat(),
+                        turnSliderPosition = turnSliderPosition.toFloat(),
                         status = status,
                         connectionState = connectionState,
                         latestEvent = recentEvents.lastOrNull(),

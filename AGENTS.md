@@ -31,7 +31,7 @@ This repo contains the Android operator app for the robot project.
   - `domain/` only if the feature grows enough to justify feature-local use cases or policies.
   - `data/` only for feature-specific repositories or adapters.
 - Inside `core/`, prefer clear capability-oriented names over generic buckets:
-  - `core/transport/` for websocket, HTTP, connectivity, reconnect, and session code.
+  - `core/transport/` for websocket, connectivity, reconnect, and session code.
   - `core/protocol/` for command payloads, DTOs, serialization, protocol constants, and message parsing.
   - `core/designsystem/` or `core/ui/` for theme and reusable visual primitives.
   - `core/di/` for dependency wiring.

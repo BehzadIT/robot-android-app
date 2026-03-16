@@ -5,16 +5,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bizi.roboapp.core.protocol.navigation.NavigationServerEvent
 import com.bizi.roboapp.core.protocol.navigation.parseNavigationServerEvent
-import com.bizi.roboapp.core.transport.NavigationApi
 import com.bizi.roboapp.core.transport.NavigationWebSocketApi
 import com.bizi.roboapp.core.transport.ReliabilityEvent
 import com.bizi.roboapp.core.transport.WebSocketConnectionState
 import com.bizi.roboapp.feature.drivecontrol.domain.DRIVE_REFRESH_MS
-import com.bizi.roboapp.feature.drivecontrol.domain.DRIVE_START_EXIT_DEADBAND_RPM
-import com.bizi.roboapp.feature.drivecontrol.domain.DRIVE_STOP_ENTER_DEADBAND_RPM
-import com.bizi.roboapp.feature.drivecontrol.domain.STEERING_ANGLE_DEFAULT
-import com.bizi.roboapp.feature.drivecontrol.domain.STEERING_ANGLE_MAX
-import com.bizi.roboapp.feature.drivecontrol.domain.STEERING_ANGLE_MIN
+import com.bizi.roboapp.feature.drivecontrol.domain.DRIVE_START_EXIT_DEADBAND_PERCENT
+import com.bizi.roboapp.feature.drivecontrol.domain.DRIVE_STOP_ENTER_DEADBAND_PERCENT
+import com.bizi.roboapp.feature.drivecontrol.domain.TURN_SLIDER_DEFAULT
+import com.bizi.roboapp.feature.drivecontrol.domain.TURN_SLIDER_MAX
+import com.bizi.roboapp.feature.drivecontrol.domain.TURN_SLIDER_MIN
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +32,6 @@ private const val STATUS_RECOVERY_REQUESTED = "Recovery requested"
 private const val STATUS_RECOVERY_NOT_SENT = "Recovery not sent; reconnect and retry"
 
 class HomeViewModel(
-    val navigationApi: NavigationApi,
     val navigationWebSocketApi: NavigationWebSocketApi
 ) : ViewModel() {
     private val _status = MutableStateFlow(STATUS_IDLE)
@@ -41,8 +39,12 @@ class HomeViewModel(
 
     private val _navigateCommand = MutableStateFlow<NavigateCommand>(NavigateCommand.Stop)
     val navigateCommand = _navigateCommand.asStateFlow()
-    private val _steeringAngle = MutableStateFlow(STEERING_ANGLE_DEFAULT)
-    val steeringAngle = _steeringAngle.asStateFlow()
+
+    private val _driveSliderPosition = MutableStateFlow(0)
+    val driveSliderPosition: StateFlow<Int> = _driveSliderPosition.asStateFlow()
+
+    private val _turnSliderPosition = MutableStateFlow(TURN_SLIDER_DEFAULT)
+    val turnSliderPosition: StateFlow<Int> = _turnSliderPosition.asStateFlow()
 
     val connectionState: StateFlow<WebSocketConnectionState> = navigationWebSocketApi.connectionState
     val recentEvents: StateFlow<List<ReliabilityEvent>> = navigationWebSocketApi.recentEvents
@@ -70,16 +72,18 @@ class HomeViewModel(
         )
     }
 
-    fun onDriveSliderPositionChange(signedTargetRpm: Int) {
-        Log.i(TAG, "New slider position: $signedTargetRpm")
-        val absRpm = signedTargetRpm.absoluteValue
-        val nextCommand = NavigateCommand.Drive.fromSignedRpm(
-            signedTargetRpm = signedTargetRpm,
-            targetAngle = _steeringAngle.value
+    fun onDriveSliderPositionChange(throttlePercent: Int) {
+        Log.i(TAG, "New throttle slider position: $throttlePercent")
+        _driveSliderPosition.value = throttlePercent
+
+        val absThrottle = throttlePercent.absoluteValue
+        val nextCommand = NavigateCommand.Drive.fromSliderInputs(
+            throttleSliderPercent = throttlePercent,
+            turnSliderPercent = _turnSliderPosition.value
         )
 
         if (awaitingStopAck) {
-            if (absRpm < DRIVE_START_EXIT_DEADBAND_RPM) {
+            if (absThrottle < DRIVE_START_EXIT_DEADBAND_PERCENT) {
                 pendingDriveAfterStop = null
                 latestDriveCommand = null
                 _navigateCommand.value = NavigateCommand.Stop
@@ -91,11 +95,7 @@ class HomeViewModel(
             return
         }
 
-        // The zero zone uses hysteresis so the UI does not chatter between
-        // stop/start when the thumb hovers around zero. While inside the stop
-        // band we send one explicit stop and suppress tiny ineffective drive
-        // commands until the slider leaves the larger restart threshold.
-        if (isDriveActive && absRpm <= DRIVE_STOP_ENTER_DEADBAND_RPM) {
+        if (isDriveActive && absThrottle <= DRIVE_STOP_ENTER_DEADBAND_PERCENT) {
             isDriveActive = false
             latestDriveCommand = null
             _navigateCommand.value = NavigateCommand.Stop
@@ -103,12 +103,9 @@ class HomeViewModel(
             return
         }
 
-        val currentDirection = latestDriveCommand?.targetDirection
-        if (isDriveActive && currentDirection != null && currentDirection != nextCommand.targetDirection) {
-            // A direction reversal is serialized through an acknowledged stop.
-            // The Pico websocket handler waits for stop completion before it
-            // reads the next frame, so sending reverse-drive immediately after
-            // stop can backlog the socket and trigger unstable firmware paths.
+        val currentThrottleSign = latestDriveCommand?.throttlePercent?.compareTo(0) ?: 0
+        val nextThrottleSign = nextCommand.throttlePercent.compareTo(0)
+        if (isDriveActive && currentThrottleSign != 0 && nextThrottleSign != 0 && currentThrottleSign != nextThrottleSign) {
             isDriveActive = false
             latestDriveCommand = null
             pendingDriveAfterStop = nextCommand
@@ -117,7 +114,7 @@ class HomeViewModel(
             return
         }
 
-        if (!isDriveActive && absRpm < DRIVE_START_EXIT_DEADBAND_RPM) {
+        if (!isDriveActive && absThrottle < DRIVE_START_EXIT_DEADBAND_PERCENT) {
             latestDriveCommand = null
             _navigateCommand.value = NavigateCommand.Stop
             return
@@ -132,20 +129,20 @@ class HomeViewModel(
         }
     }
 
-    fun onSteeringSliderPositionChange(targetAngle: Int) {
-        val clampedAngle = targetAngle.coerceIn(STEERING_ANGLE_MIN.toInt(), STEERING_ANGLE_MAX.toInt())
-        _steeringAngle.value = clampedAngle
+    fun onSteeringSliderPositionChange(turnPercent: Int) {
+        val clampedTurn = turnPercent.coerceIn(TURN_SLIDER_MIN.toInt(), TURN_SLIDER_MAX.toInt())
+        _turnSliderPosition.value = clampedTurn
 
         val currentDrive = latestDriveCommand ?: return
-        val updatedCommand = currentDrive.copy(targetAngle = clampedAngle)
+        val updatedCommand = currentDrive.copy(turnPercent = clampedTurn)
         latestDriveCommand = updatedCommand
         _navigateCommand.value = updatedCommand
     }
 
     fun onSteeringSliderRelease() {
-        _steeringAngle.value = STEERING_ANGLE_DEFAULT
+        _turnSliderPosition.value = TURN_SLIDER_DEFAULT
         val currentDrive = latestDriveCommand ?: return
-        val updatedCommand = currentDrive.copy(targetAngle = STEERING_ANGLE_DEFAULT)
+        val updatedCommand = currentDrive.copy(turnPercent = 0)
         latestDriveCommand = updatedCommand
         _navigateCommand.value = updatedCommand
     }
@@ -156,7 +153,8 @@ class HomeViewModel(
         latestDriveCommand = null
         pendingDriveAfterStop = null
         _navigateCommand.value = NavigateCommand.Stop
-        _steeringAngle.value = STEERING_ANGLE_DEFAULT
+        _driveSliderPosition.value = 0
+        _turnSliderPosition.value = TURN_SLIDER_DEFAULT
         stopDriveLoopAndSendStop()
     }
 
@@ -167,7 +165,8 @@ class HomeViewModel(
         latestDriveCommand = null
         pendingDriveAfterStop = null
         _navigateCommand.value = NavigateCommand.Stop
-        _steeringAngle.value = STEERING_ANGLE_DEFAULT
+        _driveSliderPosition.value = 0
+        _turnSliderPosition.value = TURN_SLIDER_DEFAULT
         driveRefreshJob?.cancel()
         driveRefreshJob = null
         _status.value = STATUS_RECOVERING
@@ -177,9 +176,6 @@ class HomeViewModel(
                 navigationWebSocketApi.sendStopCommand()
                 delay(DRIVE_REFRESH_MS + 50L)
             }
-            // Recover is an explicit one-shot operator action in the current
-            // design. If the command cannot be sent now, the app must say so
-            // plainly rather than imply a hidden queued retry.
             val sent = navigationWebSocketApi.sendRecoverCommand()
             _status.value = if (sent) {
                 STATUS_RECOVERY_REQUESTED
@@ -197,19 +193,15 @@ class HomeViewModel(
     private fun startDriveRefreshLoop() {
         driveRefreshJob?.cancel()
 
-        // Best practice for low-latency control here is latest-intent sampling,
-        // not debounce: keep the freshest operator command and transmit it at a
-        // fixed cadence while the drag remains active.
         driveRefreshJob = viewModelScope.launch {
             while (isDriveActive) {
                 val command = latestDriveCommand ?: break
                 val sent = navigationWebSocketApi.sendDriveCommand(
-                    targetRpm = command.absTargetRpm,
-                    targetDirection = command.targetDirection.value,
-                    targetAngle = command.targetAngle
+                    throttlePercent = command.throttlePercent,
+                    turnPercent = command.turnPercent
                 )
                 _status.value = if (sent) {
-                    "Driving ${command.targetDirection.name.lowercase()} at ${command.absTargetRpm} RPM, steering ${command.targetAngle} deg"
+                    "Throttle ${command.throttlePercent}% | Turn ${command.turnPercent}%"
                 } else {
                     "Drive pending reconnect"
                 }
@@ -265,40 +257,25 @@ class HomeViewModel(
 }
 
 sealed interface NavigateCommand {
-    val absTargetRpm: Int
-    val signedTargetRpm: Int
-    val targetAngle: Int
+    val throttlePercent: Int
+    val turnPercent: Int
 
     data class Drive(
-        override val absTargetRpm: Int,
-        val targetDirection: Direction,
-        override val targetAngle: Int,
-    ) :
-        NavigateCommand {
-        override val signedTargetRpm: Int
-            get() {
-                return when (targetDirection) {
-                    Direction.FORWARD -> absTargetRpm
-                    Direction.REVERSE -> -1 * absTargetRpm
-                }
-            }
-
+        override val throttlePercent: Int,
+        override val turnPercent: Int,
+    ) : NavigateCommand {
         companion object {
-            fun fromSignedRpm(signedTargetRpm: Int, targetAngle: Int): Drive {
-                val direction = if (signedTargetRpm >= 0) Direction.FORWARD else Direction.REVERSE
-                return Drive(signedTargetRpm.absoluteValue, direction, targetAngle)
+            fun fromSliderInputs(throttleSliderPercent: Int, turnSliderPercent: Int): Drive {
+                return Drive(
+                    throttlePercent = throttleSliderPercent.coerceIn(-100, 100),
+                    turnPercent = turnSliderPercent.coerceIn(-100, 100)
+                )
             }
         }
     }
 
     data object Stop : NavigateCommand {
-        override val absTargetRpm = 0
-        override val signedTargetRpm = 0
-        override val targetAngle = STEERING_ANGLE_DEFAULT
+        override val throttlePercent = 0
+        override val turnPercent = 0
     }
-}
-
-enum class Direction(val value: Int) {
-    FORWARD(0),
-    REVERSE(1)
 }

@@ -86,25 +86,24 @@ class NavigationWebSocketApiImpl(
         }
     }
 
-    override suspend fun sendDriveCommand(targetRpm: Int, targetDirection: Int, targetAngle: Int): Boolean {
+    override suspend fun sendDriveCommand(throttlePercent: Int, turnPercent: Int): Boolean {
         val drivePayload = DriveCommandPayload(
-            type = "d",
-            targetRpm = targetRpm,
-            targetDirection = targetDirection,
-            targetAngle = targetAngle,
+            kind = "d",
+            throttlePercent = throttlePercent,
+            turnPercent = turnPercent,
             seq = sequence.incrementAndGet(),
             sentAtMs = System.currentTimeMillis()
         )
         return sendSerializedCommand(
             payload = drivePayload,
-            description = "drive seq=${drivePayload.seq} rpm=$targetRpm dir=$targetDirection angle=$targetAngle",
+            description = "drive seq=${drivePayload.seq} throttle=$throttlePercent turn=$turnPercent",
             highVolume = true
         )
     }
 
     override suspend fun sendStopCommand(): Boolean {
         val stopPayload = StopCommandPayload(
-            type = "s",
+            kind = "s",
             seq = sequence.incrementAndGet(),
             sentAtMs = System.currentTimeMillis()
         )
@@ -117,7 +116,7 @@ class NavigationWebSocketApiImpl(
 
     override suspend fun sendRecoverCommand(): Boolean {
         val recoverPayload = RecoverCommandPayload(
-            type = "r",
+            kind = "r",
             seq = sequence.incrementAndGet(),
             sentAtMs = System.currentTimeMillis()
         )
@@ -346,7 +345,7 @@ interface NavigationWebSocketApi {
     val recentEvents: StateFlow<List<ReliabilityEvent>>
 
     fun connect(onMessage: (String) -> Unit = {}, onClose: () -> Unit = {})
-    suspend fun sendDriveCommand(targetRpm: Int, targetDirection: Int, targetAngle: Int): Boolean
+    suspend fun sendDriveCommand(throttlePercent: Int, turnPercent: Int): Boolean
     suspend fun sendStopCommand(): Boolean
     suspend fun sendRecoverCommand(): Boolean
     fun disconnect()

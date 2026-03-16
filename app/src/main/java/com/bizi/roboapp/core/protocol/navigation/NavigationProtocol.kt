@@ -17,26 +17,25 @@ data class DriveRequest(
 
 @Serializable
 data class DriveCommandPayload(
-    @SerialName("t") val type: String,
-    @SerialName("r") val targetRpm: Int,
-    @SerialName("d") val targetDirection: Int,
-    @SerialName("a") val targetAngle: Int,
-    @SerialName("s") val seq: Long,
-    @SerialName("m") val sentAtMs: Long
+    @SerialName("k") val kind: String,
+    @SerialName("t") val throttlePercent: Int,
+    @SerialName("r") val turnPercent: Int,
+    @SerialName("q") val seq: Long,
+    @SerialName("w") val sentAtMs: Long
 )
 
 @Serializable
 data class StopCommandPayload(
-    @SerialName("t") val type: String,
-    @SerialName("s") val seq: Long,
-    @SerialName("m") val sentAtMs: Long
+    @SerialName("k") val kind: String,
+    @SerialName("q") val seq: Long,
+    @SerialName("w") val sentAtMs: Long
 )
 
 @Serializable
 data class RecoverCommandPayload(
-    @SerialName("t") val type: String,
-    @SerialName("s") val seq: Long,
-    @SerialName("m") val sentAtMs: Long
+    @SerialName("k") val kind: String,
+    @SerialName("q") val seq: Long,
+    @SerialName("w") val sentAtMs: Long
 )
 
 sealed interface NavigationServerEvent {
@@ -55,8 +54,8 @@ fun parseNavigationServerEvent(message: String): NavigationServerEvent? {
         return null
     }
 
-    val seq = payload["s"]?.jsonPrimitive?.contentOrNull?.toLongOrNull()
-    return when (payload["t"]?.jsonPrimitive?.contentOrNull) {
+    val seq = payload["q"]?.jsonPrimitive?.contentOrNull?.toLongOrNull()
+    return when (payload["k"]?.jsonPrimitive?.contentOrNull) {
         "a" -> NavigationServerEvent.Ack(
             code = payload["c"]?.jsonPrimitive?.contentOrNull,
             seq = seq

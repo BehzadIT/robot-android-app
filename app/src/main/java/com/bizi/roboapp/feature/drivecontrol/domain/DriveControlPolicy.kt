@@ -3,12 +3,14 @@ package com.bizi.roboapp.feature.drivecontrol.domain
 /**
  * Shared Android-side control constants for the drivetrain UI and transport.
  *
- * Positive steering angle means steer right.
- * Negative steering angle means steer left.
+ * Positive turn means right.
+ * Negative turn means left.
  */
 const val DRIVE_REFRESH_MS = 50L
-const val DRIVE_STOP_ENTER_DEADBAND_RPM = 5
-const val DRIVE_START_EXIT_DEADBAND_RPM = 8
-const val STEERING_ANGLE_MIN = -90f
-const val STEERING_ANGLE_MAX = 90f
-const val STEERING_ANGLE_DEFAULT = 0
+const val DRIVE_STOP_ENTER_DEADBAND_PERCENT = 2
+const val DRIVE_START_EXIT_DEADBAND_PERCENT = 3
+const val THROTTLE_SLIDER_MIN = -100f
+const val THROTTLE_SLIDER_MAX = 100f
+const val TURN_SLIDER_MIN = -100f
+const val TURN_SLIDER_MAX = 100f
+const val TURN_SLIDER_DEFAULT = 0
