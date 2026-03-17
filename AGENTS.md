@@ -14,11 +14,29 @@ This repo contains the Android operator app for the robot project.
 - Keep a clear distinction between current implemented behavior and intended future operator model.
 - Do not assume the ESP32 is the command endpoint; verify command routing against the shared docs and current code.
 - When making non-trivial decisions, state the relevant best practice, design pattern, technology choice, and architecture tradeoff.
+- Before making any non-trivial code or design change, explicitly tell the user:
+  - the architectural boundary being preserved or changed
+  - the design pattern or app structure being used
+  - the best practice being followed
+  - the software engineering reason for the choice
+  - the robotics/operator-control reason for the choice, especially around state ownership, latency tolerance, degraded connectivity, and preventing unsafe UI assumptions
+- For trivial edits, keep this brief but still state whether the change affects UI structure, state management, transport behavior, or only local code shape.
+- If no named pattern is appropriate, say that directly and explain the simpler engineering rule being applied instead.
 - Prefer reliability-oriented networking patterns for mobile clients: explicit connection state, bounded reconnect/backoff, keepalive configured for the actual engine in use, and transport observability.
+- Favor Android patterns that make state ownership explicit, such as unidirectional data flow, repository/adaptor boundaries, feature-local state holders, and transport isolation from UI rendering.
+- When proposing architecture changes, explain why the behavior belongs in the Android operator app instead of firmware or shared protocol documentation.
 - Log meaningful transport and protocol events, but classify expected reconnects as normal operational signals rather than fatal failures.
 - Code documentation matters in this project. Add clear comments or docstrings for non-obvious behavior, especially around connection lifecycle, retry/backoff policy, protocol semantics, state ownership, and failure handling.
 - Avoid commenting obvious UI or Kotlin mechanics; document the parts that encode system behavior or architectural assumptions.
 - If app behavior or protocol changes, update the shared docs alongside the code.
+
+## Communication Contract
+- For meaningful tasks, give the user a short design note before editing or implementing:
+  - architecture: what layer or feature owns the behavior
+  - pattern: UDF, repository, adapter, state holder, feature-first organization, or another concrete choice
+  - best practice: the maintainability, reliability, or UX rule being followed
+  - reasoning: why that choice improves operator clarity, fault tolerance, and separation of concerns in the robot system
+- After implementation, summarize whether the result kept UI concerns, transport concerns, and protocol concerns properly separated, and note any remaining tradeoffs or validation gaps.
 
 ## Structure Pattern
 - Use feature-first structure inside the Android app, with a small number of technical support roots.
