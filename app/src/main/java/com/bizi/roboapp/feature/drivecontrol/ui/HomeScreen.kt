@@ -1,114 +1,155 @@
 package com.bizi.roboapp.feature.drivecontrol.ui
 
-import android.util.Log
-import androidx.compose.foundation.interaction.DragInteraction
-import androidx.compose.foundation.interaction.Interaction
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.Slider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.bizi.roboapp.core.transport.ReliabilityEvent
 import com.bizi.roboapp.core.transport.WebSocketConnectionState
-import com.bizi.roboapp.feature.drivecontrol.domain.DRIVE_STOP_ENTER_DEADBAND_PERCENT
-import com.bizi.roboapp.feature.drivecontrol.domain.THROTTLE_SLIDER_MAX
-import com.bizi.roboapp.feature.drivecontrol.domain.THROTTLE_SLIDER_MIN
-import com.bizi.roboapp.feature.drivecontrol.domain.TURN_SLIDER_MAX
-import com.bizi.roboapp.feature.drivecontrol.domain.TURN_SLIDER_MIN
+import com.bizi.roboapp.feature.drivecontrol.ui.controls.ThrottleLane
 
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    driveSliderPosition: Float,
-    turnSliderPosition: Float,
+    throttlePercent: Int,
     status: String,
     connectionState: WebSocketConnectionState,
     latestEvent: ReliabilityEvent?,
-    onDriveSliderPositionChange: (Int) -> Unit,
-    onDriveSliderRelease: () -> Unit,
-    onSteeringSliderPositionChange: (Int) -> Unit,
-    onSteeringSliderRelease: () -> Unit,
+    onThrottleChanged: (Int) -> Unit,
+    onThrottleReleased: () -> Unit,
     onRecoverRequested: () -> Unit,
 ) {
-    Row(modifier = modifier.padding(16.dp)) {
-        Column {
-            val interactionSource = remember { MutableInteractionSource() }
-            val interactions = remember { mutableStateListOf<Interaction>() }
-            val steeringInteractionSource = remember { MutableInteractionSource() }
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        TopStatusStrip(
+            status = status,
+            connectionState = connectionState
+        )
 
-            LaunchedEffect(interactionSource) {
-                interactionSource.interactions.collect { interaction ->
-                    Log.d("HomeScreen", "Interaction: $interaction")
-                    when (interaction) {
-                        is PressInteraction.Press -> {
-                            interactions.add(interaction)
-                        }
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(360.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                ThrottleLane(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    throttlePercent = throttlePercent,
+                    onThrottleChanged = onThrottleChanged,
+                    onThrottleReleased = onThrottleReleased
+                )
 
-                        is DragInteraction.Start -> {
-                            interactions.add(interaction)
-                        }
-
-                        is PressInteraction.Release -> {
-                            Log.d("HomeScreen", "Slider Released")
-                        }
-                    }
-                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                )
             }
+        }
 
-            LaunchedEffect(steeringInteractionSource) {
-                steeringInteractionSource.interactions.collect { interaction ->
-                    if (interaction is PressInteraction.Release) {
-                        Log.d("HomeScreen", "Steering slider released")
-                    }
-                }
-            }
+        BottomStatusStrip(
+            latestEvent = latestEvent,
+            onRecoverRequested = onRecoverRequested
+        )
+    }
+}
 
-            Slider(
-                value = driveSliderPosition,
-                interactionSource = interactionSource,
-                onValueChange = { newValue -> onDriveSliderPositionChange(newValue.toInt()) },
-                onValueChangeFinished = { onDriveSliderRelease() },
-                valueRange = THROTTLE_SLIDER_MIN..THROTTLE_SLIDER_MAX
-            )
-            Slider(
-                value = turnSliderPosition,
-                interactionSource = steeringInteractionSource,
-                onValueChange = { newValue -> onSteeringSliderPositionChange(newValue.toInt()) },
-                onValueChangeFinished = { onSteeringSliderRelease() },
-                valueRange = TURN_SLIDER_MIN..TURN_SLIDER_MAX
-            )
-            Text(text = "Transport: ${connectionState.label()}")
-            Text(text = "Status: $status")
-            if (kotlin.math.abs(driveSliderPosition) <= DRIVE_STOP_ENTER_DEADBAND_PERCENT) {
-                Text(text = "Stopped")
-            } else if (driveSliderPosition > 0f) {
-                Text(text = "Throttle Forward ${driveSliderPosition.toInt()}%")
-            } else if (driveSliderPosition < 0f) {
-                Text(text = "Throttle Reverse ${-driveSliderPosition.toInt()}%")
-            } else {
-                Text(text = "Stopped")
-            }
+@Composable
+private fun TopStatusStrip(
+    status: String,
+    connectionState: WebSocketConnectionState,
+) {
+    Surface(
+        tonalElevation = 1.dp,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Text(
-                text = when {
-                    turnSliderPosition > 0f -> "Turn Right ${turnSliderPosition.toInt()}%"
-                    turnSliderPosition < 0f -> "Turn Left ${-turnSliderPosition.toInt()}%"
-                    else -> "Turn Straight"
-                }
+                text = "Transport: ${connectionState.label()}",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f)
             )
-            Button(onClick = { onRecoverRequested() }) {
-                Text(text = "Recover Drivetrain")
+            Text(
+                text = "Status: $status",
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun BottomStatusStrip(
+    latestEvent: ReliabilityEvent?,
+    onRecoverRequested: () -> Unit,
+) {
+    Surface(
+        tonalElevation = 1.dp,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .defaultMinSize(minHeight = 36.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text(
+                    text = latestEvent?.let { "Last event: ${it.type} - ${it.message}" } ?: "Last event: none",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
-            latestEvent?.let { event ->
-                Text(text = "Last event: ${event.type} - ${event.message}")
+            Button(onClick = onRecoverRequested) {
+                Text(text = "Recover")
             }
         }
     }

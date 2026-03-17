@@ -25,29 +25,21 @@ class MainActivity : ComponentActivity() {
         setContent {
             RoboAppTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    val driveSliderPosition by viewModel.driveSliderPosition.collectAsStateWithLifecycle()
-                    val turnSliderPosition by viewModel.turnSliderPosition.collectAsStateWithLifecycle()
+                    val throttlePercent by viewModel.throttlePercent.collectAsStateWithLifecycle()
                     val status by viewModel.status.collectAsStateWithLifecycle()
                     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
                     val recentEvents by viewModel.recentEvents.collectAsStateWithLifecycle()
                     HomeScreen(
                         modifier = Modifier.padding(innerPadding),
-                        driveSliderPosition = driveSliderPosition.toFloat(),
-                        turnSliderPosition = turnSliderPosition.toFloat(),
+                        throttlePercent = throttlePercent,
                         status = status,
                         connectionState = connectionState,
                         latestEvent = recentEvents.lastOrNull(),
-                        onDriveSliderPositionChange = {
-                            viewModel.onDriveSliderPositionChange(it)
+                        onThrottleChanged = {
+                            viewModel.onThrottleChanged(it)
                         },
-                        onDriveSliderRelease = {
-                            viewModel.onDriveSliderRelease()
-                        },
-                        onSteeringSliderPositionChange = {
-                            viewModel.onSteeringSliderPositionChange(it)
-                        },
-                        onSteeringSliderRelease = {
-                            viewModel.onSteeringSliderRelease()
+                        onThrottleReleased = {
+                            viewModel.onThrottleReleased()
                         },
                         onRecoverRequested = {
                             viewModel.onRecoverRequested()

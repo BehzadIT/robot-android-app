@@ -11,9 +11,6 @@ import com.bizi.roboapp.core.transport.WebSocketConnectionState
 import com.bizi.roboapp.feature.drivecontrol.domain.DRIVE_REFRESH_MS
 import com.bizi.roboapp.feature.drivecontrol.domain.DRIVE_START_EXIT_DEADBAND_PERCENT
 import com.bizi.roboapp.feature.drivecontrol.domain.DRIVE_STOP_ENTER_DEADBAND_PERCENT
-import com.bizi.roboapp.feature.drivecontrol.domain.TURN_SLIDER_DEFAULT
-import com.bizi.roboapp.feature.drivecontrol.domain.TURN_SLIDER_MAX
-import com.bizi.roboapp.feature.drivecontrol.domain.TURN_SLIDER_MIN
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +21,7 @@ import kotlin.math.absoluteValue
 
 private const val TAG = "HomeViewModel"
 private const val STATUS_IDLE = "Idle"
+private const val STATUS_DRIVING = "Driving"
 private const val STATUS_STOPPING = "Stopping"
 private const val STATUS_STOPPED = "Stopped"
 private const val STATUS_STOP_NOT_CONFIRMED = "Stop not confirmed; waiting for Pico timeout/reconnect"
@@ -40,11 +38,8 @@ class HomeViewModel(
     private val _navigateCommand = MutableStateFlow<NavigateCommand>(NavigateCommand.Stop)
     val navigateCommand = _navigateCommand.asStateFlow()
 
-    private val _driveSliderPosition = MutableStateFlow(0)
-    val driveSliderPosition: StateFlow<Int> = _driveSliderPosition.asStateFlow()
-
-    private val _turnSliderPosition = MutableStateFlow(TURN_SLIDER_DEFAULT)
-    val turnSliderPosition: StateFlow<Int> = _turnSliderPosition.asStateFlow()
+    private val _throttlePercent = MutableStateFlow(0)
+    val throttlePercent: StateFlow<Int> = _throttlePercent.asStateFlow()
 
     val connectionState: StateFlow<WebSocketConnectionState> = navigationWebSocketApi.connectionState
     val recentEvents: StateFlow<List<ReliabilityEvent>> = navigationWebSocketApi.recentEvents
@@ -72,15 +67,12 @@ class HomeViewModel(
         )
     }
 
-    fun onDriveSliderPositionChange(throttlePercent: Int) {
-        Log.i(TAG, "New throttle slider position: $throttlePercent")
-        _driveSliderPosition.value = throttlePercent
+    fun onThrottleChanged(throttlePercent: Int) {
+        Log.i(TAG, "New throttle position: $throttlePercent")
+        _throttlePercent.value = throttlePercent
 
         val absThrottle = throttlePercent.absoluteValue
-        val nextCommand = NavigateCommand.Drive.fromSliderInputs(
-            throttleSliderPercent = throttlePercent,
-            turnSliderPercent = _turnSliderPosition.value
-        )
+        val nextCommand = NavigateCommand.Drive.fromThrottlePercent(throttlePercent)
 
         if (awaitingStopAck) {
             if (absThrottle < DRIVE_START_EXIT_DEADBAND_PERCENT) {
@@ -117,6 +109,7 @@ class HomeViewModel(
         if (!isDriveActive && absThrottle < DRIVE_START_EXIT_DEADBAND_PERCENT) {
             latestDriveCommand = null
             _navigateCommand.value = NavigateCommand.Stop
+            _status.value = STATUS_IDLE
             return
         }
 
@@ -129,32 +122,13 @@ class HomeViewModel(
         }
     }
 
-    fun onSteeringSliderPositionChange(turnPercent: Int) {
-        val clampedTurn = turnPercent.coerceIn(TURN_SLIDER_MIN.toInt(), TURN_SLIDER_MAX.toInt())
-        _turnSliderPosition.value = clampedTurn
-
-        val currentDrive = latestDriveCommand ?: return
-        val updatedCommand = currentDrive.copy(turnPercent = clampedTurn)
-        latestDriveCommand = updatedCommand
-        _navigateCommand.value = updatedCommand
-    }
-
-    fun onSteeringSliderRelease() {
-        _turnSliderPosition.value = TURN_SLIDER_DEFAULT
-        val currentDrive = latestDriveCommand ?: return
-        val updatedCommand = currentDrive.copy(turnPercent = 0)
-        latestDriveCommand = updatedCommand
-        _navigateCommand.value = updatedCommand
-    }
-
-    fun onDriveSliderRelease() {
-        Log.d(TAG, "Slider released")
+    fun onThrottleReleased() {
+        Log.d(TAG, "Throttle released")
         isDriveActive = false
         latestDriveCommand = null
         pendingDriveAfterStop = null
         _navigateCommand.value = NavigateCommand.Stop
-        _driveSliderPosition.value = 0
-        _turnSliderPosition.value = TURN_SLIDER_DEFAULT
+        _throttlePercent.value = 0
         stopDriveLoopAndSendStop()
     }
 
@@ -165,8 +139,7 @@ class HomeViewModel(
         latestDriveCommand = null
         pendingDriveAfterStop = null
         _navigateCommand.value = NavigateCommand.Stop
-        _driveSliderPosition.value = 0
-        _turnSliderPosition.value = TURN_SLIDER_DEFAULT
+        _throttlePercent.value = 0
         driveRefreshJob?.cancel()
         driveRefreshJob = null
         _status.value = STATUS_RECOVERING
@@ -201,7 +174,7 @@ class HomeViewModel(
                     turnPercent = command.turnPercent
                 )
                 _status.value = if (sent) {
-                    "Throttle ${command.throttlePercent}% | Turn ${command.turnPercent}%"
+                    STATUS_DRIVING
                 } else {
                     "Drive pending reconnect"
                 }
@@ -265,10 +238,10 @@ sealed interface NavigateCommand {
         override val turnPercent: Int,
     ) : NavigateCommand {
         companion object {
-            fun fromSliderInputs(throttleSliderPercent: Int, turnSliderPercent: Int): Drive {
+            fun fromThrottlePercent(throttlePercent: Int): Drive {
                 return Drive(
-                    throttlePercent = throttleSliderPercent.coerceIn(-100, 100),
-                    turnPercent = turnSliderPercent.coerceIn(-100, 100)
+                    throttlePercent = throttlePercent.coerceIn(-100, 100),
+                    turnPercent = 0
                 )
             }
         }
