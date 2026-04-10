@@ -4,13 +4,16 @@
 This repo contains the Android operator app for the robot project.
 
 ## Instructions
-- Before changing code here, read the shared docs root at `robot-project-docs`.
+- When working from the parent `ai-robot` workspace, read the shared docs root at
+  `../docs`.
 - At minimum, review:
-  - `robot-project-docs/overview/current-architecture.md`
-  - `robot-project-docs/control-and-apps/android-control-app.md`
-  - `robot-project-docs/control-and-apps/operator-control-model.md`
-  - `robot-project-docs/interfaces/command-protocol.md`
-  - `robot-project-docs/verification/known-issues-and-open-questions.md`
+  - `../docs/overview/current-architecture.md`
+  - `../docs/control-and-apps/android-control-app.md`
+  - `../docs/control-and-apps/operator-control-model.md`
+  - `../docs/interfaces/command-protocol.md`
+  - `../docs/verification/known-issues-and-open-questions.md`
+- This repository is a submodule of the parent `ai-robot` integration
+  workspace, but it keeps its own Git history and release cycle.
 - Keep a clear distinction between current implemented behavior and intended future operator model.
 - Do not assume the ESP32 is the command endpoint; verify command routing against the shared docs and current code.
 - When making non-trivial decisions, state the relevant best practice, design pattern, technology choice, and architecture tradeoff.
@@ -29,6 +32,8 @@ This repo contains the Android operator app for the robot project.
 - Code documentation matters in this project. Add clear comments or docstrings for non-obvious behavior, especially around connection lifecycle, retry/backoff policy, protocol semantics, state ownership, and failure handling.
 - Avoid commenting obvious UI or Kotlin mechanics; document the parts that encode system behavior or architectural assumptions.
 - If app behavior or protocol changes, update the shared docs alongside the code.
+- If the change updates a known-good integrated robot state, update the parent
+  repository's submodule pointer after committing this repo.
 
 ## Communication Contract
 - For meaningful tasks, give the user a short design note before editing or implementing:
