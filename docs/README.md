@@ -12,6 +12,8 @@ repository.
   semantics, and future UX direction.
 - `floating-touch-lanes.md`: detailed implementation plan for the split
   floating touch-lane control surface.
+- `code-documentation.md`: how to document Kotlin transport and state-holder
+  behavior with robotics-specific ownership and safety context.
 
 ## Parent Context
 When available, read:

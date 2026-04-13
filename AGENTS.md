@@ -12,6 +12,7 @@ This repo contains the Android operator app for the robot project.
   - `../docs/control-and-apps/operator-control-model.md`
   - `../docs/interfaces/command-protocol.md`
   - `../docs/verification/known-issues-and-open-questions.md`
+  - `docs/code-documentation.md`
 - This repository is a submodule of the parent `ai-robot` integration
   workspace, but it keeps its own Git history and release cycle.
 - Android-specific implementation docs live in `docs/`. Shared system behavior,
@@ -33,6 +34,7 @@ This repo contains the Android operator app for the robot project.
 - When proposing architecture changes, explain why the behavior belongs in the Android operator app instead of firmware or shared protocol documentation.
 - Log meaningful transport and protocol events, but classify expected reconnects as normal operational signals rather than fatal failures.
 - Code documentation matters in this project. Add clear comments or docstrings for non-obvious behavior, especially around connection lifecycle, retry/backoff policy, protocol semantics, state ownership, and failure handling.
+- Follow `docs/code-documentation.md` for repo-local documentation style and examples.
 - Avoid commenting obvious UI or Kotlin mechanics; document the parts that encode system behavior or architectural assumptions.
 - If app behavior or protocol changes, update the shared docs alongside the code.
 - If the change updates a known-good integrated robot state, update the parent
