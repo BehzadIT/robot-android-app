@@ -1,6 +1,6 @@
 *.iml
-.gradle
-/.kotlin
+.gradle/
+/.kotlin/
 /local.properties
 /.idea/caches
 /.idea/libraries
@@ -8,12 +8,29 @@
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
+/.idea/deploymentTargetSelector.xml
+/.idea/copilot.data.migration.*.xml
+.vscode/
+
+# Generated build and diagnostic output
+build/
+/captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.hprof
+
+# Signing configuration and credentials
+keystore.properties
+*.jks
+*.keystore
+
+# OS and editor backup files
 .DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
+Thumbs.db
+*.swp
+*~
 
 # Python tooling caches
 __pycache__/
