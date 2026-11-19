@@ -30,6 +30,8 @@ This repo contains the Android operator app for the robot project.
 - For trivial edits, keep this brief but still state whether the change affects UI structure, state management, transport behavior, or only local code shape.
 - If no named pattern is appropriate, say that directly and explain the simpler engineering rule being applied instead.
 - Prefer reliability-oriented networking patterns for mobile clients: explicit connection state, bounded reconnect/backoff, keepalive configured for the actual engine in use, and transport observability.
+- Use `tools/robot_adapter.py` for structured US-003 doctor and verification
+  results; keep Gradle and ADB as the underlying authoritative tools.
 - Favor Android patterns that make state ownership explicit, such as unidirectional data flow, repository/adaptor boundaries, feature-local state holders, and transport isolation from UI rendering.
 - When proposing architecture changes, explain why the behavior belongs in the Android operator app instead of firmware or shared protocol documentation.
 - Log meaningful transport and protocol events, but classify expected reconnects as normal operational signals rather than fatal failures.

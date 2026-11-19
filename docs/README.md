@@ -15,6 +15,13 @@ repository.
 - `code-documentation.md`: how to document Kotlin transport and state-holder
   behavior with robotics-specific ownership and safety context.
 
+## Agent Verification Adapter
+
+`python3 tools/robot_adapter.py doctor --json` performs read-only Android
+toolchain/device discovery. `verify android-default --json` owns the repository
+Gradle compile, unit-test, and lint workflow. Device installation and
+instrumentation remain explicit Gate 1 scenarios selected by the parent CLI.
+
 ## Parent Context
 When available, read:
 - `../../docs/overview/current-architecture.md`

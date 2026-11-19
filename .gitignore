@@ -14,3 +14,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Python tooling caches
+__pycache__/
+*.py[cod]
